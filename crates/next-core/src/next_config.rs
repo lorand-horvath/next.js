@@ -1094,12 +1094,6 @@ impl NextConfig {
         Vc::cell(self.experimental.taint.unwrap_or(false))
     }
 
-    pub async fn enable_dynamic_io(self: Vc<Self>) -> Result<Vc<bool>> {
-        Ok(Vc::cell(
-            self.await?.experimental.dynamic_io.unwrap_or(false),
-        ))
-    }
-
     #[turbo_tasks::function]
     pub async fn enable_react_owner_stack(self: Vc<Self>) -> Result<Vc<bool>> {
         Ok(Vc::cell(

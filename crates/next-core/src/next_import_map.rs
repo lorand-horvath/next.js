@@ -117,10 +117,8 @@ pub async fn get_next_client_import_map(
     match ty.into_value() {
         ClientContextType::Pages { .. } => {}
         ClientContextType::App { app_dir } => {
-            let react_flavor = 
-                if *next_config.enable_ppr().await?
+            let react_flavor = if *next_config.enable_ppr().await?
                 || *next_config.enable_taint().await?
-                || *next_config.enable_dynamic_io().await?
                 || *next_config.enable_react_owner_stack().await?
             {
                 "-experimental"
@@ -688,9 +686,8 @@ async fn rsc_aliases(
 ) -> Result<()> {
     let ppr = *next_config.enable_ppr().await?;
     let taint = *next_config.enable_taint().await?;
-    let dynamic_io = *next_config.enable_dynamic_io().await?;
     let react_owner_stack = *next_config.enable_react_owner_stack().await?;
-    let react_channel = if ppr || taint || dynamic_io || react_owner_stack {
+    let react_channel = if ppr || taint || react_owner_stack {
         "-experimental"
     } else {
         ""
