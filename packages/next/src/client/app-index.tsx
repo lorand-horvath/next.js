@@ -9,7 +9,11 @@ import React, { use } from 'react'
 // eslint-disable-next-line import/no-extraneous-dependencies
 import { createFromReadableStream } from 'react-server-dom-webpack/client'
 import { HeadManagerContext } from '../shared/lib/head-manager-context.shared-runtime'
-import { onRecoverableError } from './on-recoverable-error'
+import {
+  onRecoverableError,
+  onCaughtError,
+  onUncaughtError,
+} from './react-client-callbacks'
 import { callServer } from './app-call-server'
 import {
   type AppRouterActionQueue,
@@ -24,6 +28,8 @@ import { MissingSlotContext } from '../shared/lib/app-router-context.shared-runt
 import { findSourceMapURL } from 'next/dist/client/app-find-source-map-url'
 
 /// <reference types="react-dom/experimental" />
+
+const isReactOwnerStackEnabled = !!process.env.__NEXT_REACT_OWNER_STACK
 
 const appElement: HTMLElement | Document | null = document
 
@@ -231,6 +237,12 @@ export function hydrate() {
 
   const options = {
     onRecoverableError,
+    ...(isReactOwnerStackEnabled && process.env.NODE_ENV !== 'production'
+      ? {
+          onCaughtError,
+          onUncaughtError,
+        }
+      : undefined),
   } satisfies ReactDOMClient.RootOptions
   const isError =
     document.documentElement.id === '__next_error__' || hasMissingTags
