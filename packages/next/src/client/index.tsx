@@ -45,7 +45,7 @@ import {
   SearchParamsContext,
   PathParamsContext,
 } from '../shared/lib/hooks-client-context.shared-runtime'
-import { onRecoverableError } from './react-client-callbacks'
+import { onRecoverableError } from './react-client-callbacks/shared'
 import tracer from './tracing/tracer'
 import reportToSocket from './tracing/report-to-socket'
 

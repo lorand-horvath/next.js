@@ -9,11 +9,11 @@ import React, { use } from 'react'
 // eslint-disable-next-line import/no-extraneous-dependencies
 import { createFromReadableStream } from 'react-server-dom-webpack/client'
 import { HeadManagerContext } from '../shared/lib/head-manager-context.shared-runtime'
+import { onRecoverableError } from './react-client-callbacks/shared'
 import {
-  onRecoverableError,
   onCaughtError,
   onUncaughtError,
-} from './react-client-callbacks'
+} from './react-client-callbacks/app-router'
 import { callServer } from './app-call-server'
 import {
   type AppRouterActionQueue,
@@ -235,14 +235,17 @@ export function hydrate() {
   const rootLayoutMissingTags = window.__next_root_layout_missing_tags
   const hasMissingTags = !!rootLayoutMissingTags?.length
 
-  const options = {
-    onRecoverableError,
-    ...(isReactOwnerStackEnabled && process.env.NODE_ENV !== 'production'
+  const errorCallbacks =
+    isReactOwnerStackEnabled && process.env.NODE_ENV !== 'production'
       ? {
           onCaughtError,
           onUncaughtError,
         }
-      : undefined),
+      : undefined
+
+  const options = {
+    onRecoverableError,
+    ...errorCallbacks,
   } satisfies ReactDOMClient.RootOptions
   const isError =
     document.documentElement.id === '__next_error__' || hasMissingTags
