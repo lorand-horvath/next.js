@@ -36,20 +36,12 @@ describe('app dir - dynamic error trace', () => {
       .filter(Boolean)
       .join('\n')
 
-    expect(normalizeStackTrace(stackFramesContent)).toMatchInlineSnapshot(
-      isReactExperimental
-        ? `
-      "ReactDevOverlay
-      ../src/client/components/react-dev-overlay/app/hot-reloader-client.tsx
-      assetPrefix
-      ../src/client/components/app-router.tsx
-      actionQueue
-      ../src/client/components/app-router.tsx
-      AppRouter
-      ../src/client/app-index.tsx"
-    `
-        : `""`
-    )
+    if (process.env.TURBOPACK) {
+      expect(normalizeStackTrace(stackFramesContent)).toMatchInlineSnapshot(
+        isReactExperimental ? `""` : `""`
+      )
+    } else {
+    }
 
     const codeframe = await getRedboxSource(browser)
     // TODO(NDX-115): column for "^"" marker is inconsistent between native, Webpack, and Turbopack

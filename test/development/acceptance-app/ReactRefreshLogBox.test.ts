@@ -813,7 +813,7 @@ describe.each(['default', 'turbo'])('ReactRefreshLogBox app %s', () => {
         '[data-nextjs-call-stack-frame]'
       )
       const stackFrames = await Promise.all(
-        stackFrameElements.map((f) => f.innerText())
+        stackFrameElements.map((f) => f.innerText()).filter(Boolean)
       )
       expect(stackFrames).toEqual([])
     } finally {

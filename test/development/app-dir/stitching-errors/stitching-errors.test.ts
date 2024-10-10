@@ -130,8 +130,8 @@ describe('stitching errors', () => {
       at performUnitOfWork 
       at workLoopSync 
       at renderRootSync 
-      at recoverFromConcurrentError 
-      at performConcurrentWorkOnRoot 
+      at performWorkOnRoot 
+      at performWorkOnRootViaSchedulerTask 
       at MessagePort.performWorkUntilDeadline 
       The above error occurred in the <Thrower> component. It was handled by the <MyErrorBoundary> error boundary."
     `)
@@ -185,8 +185,8 @@ describe('stitching errors', () => {
       at performUnitOfWork 
       at workLoopSync 
       at renderRootSync 
-      at recoverFromConcurrentError 
-      at performConcurrentWorkOnRoot 
+      at performWorkOnRoot 
+      at performWorkOnRootViaSchedulerTask 
       at MessagePort.performWorkUntilDeadline 
       The above error occurred in the <Page> component. It was handled by the <ReactDevOverlay> error boundary."
     `)
