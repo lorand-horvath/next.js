@@ -812,9 +812,9 @@ describe.each(['default', 'turbo'])('ReactRefreshLogBox app %s', () => {
       const stackFrameElements = await browser.elementsByCss(
         '[data-nextjs-call-stack-frame]'
       )
-      const stackFrames = await Promise.all(
-        stackFrameElements.map((f) => f.innerText()).filter(Boolean)
-      )
+      const stackFrames = (
+        await Promise.all(stackFrameElements.map((f) => f.innerText()))
+      ).filter(Boolean)
       expect(stackFrames).toEqual([])
     } finally {
       await cleanup()
@@ -853,9 +853,9 @@ describe.each(['default', 'turbo'])('ReactRefreshLogBox app %s', () => {
       const stackFrameElements = await browser.elementsByCss(
         '[data-nextjs-call-stack-frame]'
       )
-      const stackFrames = await Promise.all(
-        stackFrameElements.map((f) => f.innerText())
-      )
+      const stackFrames = (
+        await Promise.all(stackFrameElements.map((f) => f.innerText()))
+      ).filter(Boolean)
       expect(stackFrames).toEqual([])
     } finally {
       await cleanup()
