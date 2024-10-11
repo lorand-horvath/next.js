@@ -72,6 +72,8 @@ pub struct ResolveOptionsContext {
     /// Plugins which get applied before and after resolving.
     pub after_resolve_plugins: Vec<Vc<Box<dyn AfterResolvePlugin>>>,
     pub before_resolve_plugins: Vec<Vc<Box<dyn BeforeResolvePlugin>>>,
+    /// Ignore unresolvable requests
+    pub ignore_unresolvable: bool,
     #[serde(default)]
     pub placeholder_for_future_extensions: (),
 }

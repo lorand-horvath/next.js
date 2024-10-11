@@ -39,6 +39,7 @@ use turbopack_core::{
     asset::Asset,
     compile_time_info::CompileTimeInfo,
     context::{AssetContext, ProcessResult},
+    environment::{Environment, ExecutionEnvironment, NodeJsEnvironment},
     ident::AssetIdent,
     issue::{Issue, IssueExt, IssueStage, OptionStyledString, StyledString},
     module::Module,
@@ -50,7 +51,7 @@ use turbopack_core::{
     },
     resolve::{
         options::ResolveOptions, origin::PlainResolveOrigin, parse::Request, resolve, ExternalType,
-        ModulePart, ModuleResolveResult, ModuleResolveResultItem, ResolveResult,
+        ModulePart, ModuleResolveResult, ModuleResolveResultItem, ResolveResult, ResolveResultItem,
     },
     source::Source,
 };
@@ -701,21 +702,88 @@ impl AssetContext for ModuleAssetContext {
         reference_type: Value<ReferenceType>,
     ) -> Result<Vc<ModuleResolveResult>> {
         let this = self.await?;
-        let transition = this.transition;
 
         let result = result
             .await?
-            .map_module(|source| {
+            .map_items(|item| {
                 let reference_type = reference_type.clone();
                 async move {
-                    let process_result = if let Some(transition) = transition {
-                        transition.process(source, self, reference_type)
-                    } else {
-                        self.process_with_transition_rules(source, reference_type)
-                    };
-                    Ok(match *process_result.await? {
-                        ProcessResult::Module(m) => ModuleResolveResultItem::Module(Vc::upcast(m)),
-                        ProcessResult::Ignore => ModuleResolveResultItem::Ignore,
+                    Ok(match item {
+                        ResolveResultItem::Source(source) => {
+                            match &*self.process(source, reference_type).await? {
+                                ProcessResult::Module(module) => {
+                                    ModuleResolveResultItem::Module(*module)
+                                }
+                                ProcessResult::Ignore => ModuleResolveResultItem::Ignore,
+                            }
+                        }
+                        ResolveResultItem::External { name, typ, source } => {
+                            ModuleResolveResultItem::External {
+                                name,
+                                typ,
+                                module: match source {
+                                    // TODO use self.process to consider transitions?
+                                    Some(source) => {
+                                        let external_context = {
+                                            let env = Environment::new(Value::new(
+                                                ExecutionEnvironment::NodeJsLambda(
+                                                    NodeJsEnvironment::default().cell(),
+                                                ),
+                                            ));
+                                            let compile_time_info =
+                                                CompileTimeInfo::builder(env).cell();
+                                            // let glob_mappings = vec![
+                                            //     (
+                                            //         root,
+                                            //         Glob::new("**/*/next/dist/server/next.js".
+                                            // into()),
+                                            //         ImportMapping::Ignore.into(),
+                                            //     ),
+                                            //     (
+                                            //         root,
+                                            //         Glob::new("**/*/next/dist/bin/next".into()),
+                                            //         ImportMapping::Ignore.into(),
+                                            //     ),
+                                            // ];
+
+                                            let mut resolve_options =
+                                                ResolveOptionsContext::default();
+                                            resolve_options.emulate_environment = Some(env);
+                                            resolve_options.ignore_unresolvable = true;
+                                            // resolve_options.resolved_map = Some(
+                                            //     ResolvedMap {
+                                            //         by_glob: glob_mappings,
+                                            //     }
+                                            //     .cell(),
+                                            // );
+
+                                            ModuleAssetContext::new(
+                                                Default::default(),
+                                                compile_time_info,
+                                                // self.module_options_context(),
+                                                ModuleOptionsContext::default().cell(),
+                                                resolve_options.cell(),
+                                                Vc::cell("external_tracing".into()),
+                                            )
+                                        };
+
+                                        match &*process_default(
+                                            external_context,
+                                            source,
+                                            reference_type,
+                                            vec![],
+                                        )
+                                        .await?
+                                        {
+                                            ProcessResult::Module(module) => Some(*module),
+                                            ProcessResult::Ignore => None,
+                                        }
+                                    }
+                                    None => None,
+                                },
+                            }
+                        }
+                        v => v.try_into()?,
                     })
                 }
             })
@@ -943,13 +1011,11 @@ pub async fn replace_externals(
         let module = CachedExternalModule::new(
             request.clone(),
             external_type,
-            Vc::cell(match module {
-                Some(module) => match &**module {
-                    ModuleResolveResultItem::Module(module) => Some(*module),
-                    _ => None,
-                },
-                None => None,
-            }),
+            // TODO should ModuleResolveResultItem::External contain a Vc<Option> or a Option<Vc>?
+            match module {
+                Some(module) => Vc::cell(Some(*module)),
+                None => Vc::cell(None),
+            },
         )
         .resolve()
         .await?;
