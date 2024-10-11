@@ -1465,6 +1465,13 @@ pub async fn resolve_inline(
             }
         };
 
+        let raw_result =
+            if *raw_result.is_unresolveable().await? && options.await?.ignore_unresolvable {
+                ResolveResult::primary(ResolveResultItem::Ignore).cell()
+            } else {
+                raw_result
+            };
+
         let result =
             handle_after_resolve_plugins(lookup_path, reference_type, request, options, raw_result)
                 .await?;

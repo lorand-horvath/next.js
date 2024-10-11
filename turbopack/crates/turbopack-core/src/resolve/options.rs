@@ -504,6 +504,8 @@ pub struct ResolveOptions {
     pub plugins: Vec<Vc<Box<dyn AfterResolvePlugin>>>,
     /// Support resolving *.js requests to *.ts files
     pub enable_typescript_with_output_extension: bool,
+    /// Ignore unresolvable requests
+    pub ignore_unresolvable: bool,
 
     pub placeholder_for_future_extensions: (),
 }
