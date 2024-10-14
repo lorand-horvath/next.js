@@ -3,10 +3,11 @@ use turbo_tasks::Vc;
 use turbopack_core::{
     asset::{Asset, AssetContent},
     chunk::{AsyncModuleInfo, ChunkableModule, ChunkingContext, EvaluatableAsset},
+    context::AssetContext,
     ident::AssetIdent,
     module::Module,
     reference::{ModuleReference, ModuleReferences, SingleModuleReference},
-    resolve::ModulePart,
+    resolve::{origin::ResolveOrigin, ModulePart},
 };
 
 use super::{
@@ -16,7 +17,8 @@ use super::{
 use crate::{
     chunk::{EcmascriptChunkPlaceable, EcmascriptExports},
     parse::ParseResult,
-    references::analyse_ecmascript_module,
+    references::{analyse_ecmascript_module, follow_reexports, FollowExportsResult},
+    tree_shake::Key,
     AnalyzeEcmascriptModuleResult, EcmascriptAnalyzable, EcmascriptModuleAsset,
     EcmascriptModuleAssetType, EcmascriptModuleContent, EcmascriptParsable,
 };
@@ -92,9 +94,41 @@ impl EcmascriptModulePartAsset {
         module: Vc<EcmascriptModuleAsset>,
         part: Vc<ModulePart>,
     ) -> Result<Vc<Box<dyn Module>>> {
-        let SplitResult::Ok { .. } = &*split_module(module).await? else {
+        let SplitResult::Ok { entrypoints, .. } = &*split_module(module).await? else {
             return Ok(Vc::upcast(module));
         };
+
+        // We follow reexports here
+        if let ModulePart::Export(export) = &*part.await? {
+            let export_name = export.await?.clone_value();
+
+            // If a local binding or reexport with the same name exists, we stop here.
+            // Side effects of the barrel file are preserved.
+            if entrypoints.contains_key(&Key::Export(export_name.clone())) {
+                return Ok(Vc::upcast(EcmascriptModulePartAsset::new(module, part)));
+            }
+
+            // TODO: Exclude local bindings by using ModulePart::exports()
+            if entrypoints.contains_key(&Key::Exports) {}
+
+            let side_effect_free_packages = module.asset_context().side_effect_free_packages();
+
+            let FollowExportsResult {
+                module: final_module,
+                export_name: new_export,
+                ..
+            } = &*follow_reexports(
+                Vc::upcast(module),
+                export_name.clone(),
+                side_effect_free_packages,
+            )
+            .await?;
+            if let Some(new_export) = new_export {
+                if *new_export == export_name {
+                    return Ok(Vc::upcast(*final_module));
+                }
+            }
+        }
 
         Ok(Vc::upcast(EcmascriptModulePartAsset::new(module, part)))
     }
