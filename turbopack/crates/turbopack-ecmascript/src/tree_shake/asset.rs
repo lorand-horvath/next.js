@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
-use turbo_tasks::{vdbg, Vc};
+use turbo_tasks::{vdbg, RcStr, Vc};
+use turbo_tasks_fs::glob::Glob;
 use turbopack_core::{
     asset::{Asset, AssetContent},
     chunk::{AsyncModuleInfo, ChunkableModule, ChunkingContext, EvaluatableAsset},
@@ -126,16 +127,21 @@ impl EcmascriptModulePartAsset {
                 Vc::upcast(module)
             };
 
-            let FollowExportsResult {
-                module: final_module,
-                export_name: new_export,
-                ty,
-            } = &*follow_reexports(
+            let FollowExportsWithSideEffectsResult {
+                side_effects,
+                result,
+            } = &*follow_reexports_with_side_effects(
                 source_module,
                 export_name.clone(),
                 side_effect_free_packages,
             )
             .await?;
+
+            let FollowExportsResult {
+                module: final_module,
+                export_name: new_export,
+                ty,
+            } = &*result.await?;
 
             let Some(final_module) =
                 Vc::try_resolve_downcast_type::<EcmascriptModuleAsset>(*final_module).await?
@@ -172,6 +178,54 @@ impl EcmascriptModulePartAsset {
             Ok(Vc::cell(false))
         }
     }
+}
+
+#[turbo_tasks::value]
+struct FollowExportsWithSideEffectsResult {
+    side_effects: Vc<SideEffects>,
+    result: Vc<FollowExportsResult>,
+}
+
+#[turbo_tasks::value(transparent)]
+struct SideEffects(Vec<Vc<Box<dyn EcmascriptChunkPlaceable>>>);
+
+#[turbo_tasks::function]
+async fn follow_reexports_with_side_effects(
+    module: Vc<Box<dyn EcmascriptChunkPlaceable>>,
+    export_name: RcStr,
+    side_effect_free_packages: Vc<Glob>,
+) -> Result<Vc<FollowExportsWithSideEffectsResult>> {
+    let mut side_effects = vec![];
+
+    let mut current_module = module;
+    let mut current_export_name = export_name;
+    let result = loop {
+        let result = follow_reexports(
+            current_module,
+            current_export_name.clone(),
+            side_effect_free_packages,
+        );
+        let FollowExportsResult {
+            module,
+            export_name,
+            ty,
+        } = &*result.await?;
+
+        match ty {
+            FoundExportType::SideEffects => {
+                side_effects.push(*module);
+                current_module = *module;
+                current_export_name = export_name.clone().unwrap_or(current_export_name);
+            }
+            _ => break result,
+        }
+    };
+
+    Ok(FollowExportsWithSideEffectsResult {
+        side_effects: Vc::cell(side_effects),
+        result,
+    }
+    .cell())
 }
 
 #[turbo_tasks::value_impl]
