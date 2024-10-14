@@ -92,13 +92,11 @@ impl EcmascriptModulePartAsset {
         module: Vc<EcmascriptModuleAsset>,
         part: Vc<ModulePart>,
     ) -> Result<Vc<Box<dyn Module>>> {
-        let split_result = split_module(module).await?;
+        let SplitResult::Ok { .. } = &*split_module(module).await? else {
+            return Ok(Vc::upcast(module));
+        };
 
-        Ok(if matches!(&*split_result, SplitResult::Failed { .. }) {
-            Vc::upcast(module)
-        } else {
-            Vc::upcast(EcmascriptModulePartAsset::new(module, part))
-        })
+        Ok(Vc::upcast(EcmascriptModulePartAsset::new(module, part)))
     }
 
     #[turbo_tasks::function]
