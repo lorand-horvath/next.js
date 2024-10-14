@@ -17,7 +17,9 @@ use super::{
 use crate::{
     chunk::{EcmascriptChunkPlaceable, EcmascriptExports},
     parse::ParseResult,
-    references::{analyse_ecmascript_module, follow_reexports, FollowExportsResult},
+    references::{
+        analyse_ecmascript_module, esm::FoundExportType, follow_reexports, FollowExportsResult,
+    },
     tree_shake::Key,
     AnalyzeEcmascriptModuleResult, EcmascriptAnalyzable, EcmascriptModuleAsset,
     EcmascriptModuleAssetType, EcmascriptModuleContent, EcmascriptParsable,
@@ -108,8 +110,6 @@ impl EcmascriptModulePartAsset {
                 return Ok(Vc::upcast(EcmascriptModulePartAsset::new(module, part)));
             }
 
-            vdbg!("reexport", export_name.clone());
-
             let side_effect_free_packages = module.asset_context().side_effect_free_packages();
 
             // Exclude local bindings by using exports module part.
@@ -129,7 +129,7 @@ impl EcmascriptModulePartAsset {
             let FollowExportsResult {
                 module: final_module,
                 export_name: new_export,
-                ..
+                ty,
             } = &*follow_reexports(
                 source_module,
                 export_name.clone(),
@@ -137,12 +137,23 @@ impl EcmascriptModulePartAsset {
             )
             .await?;
 
-            vdbg!(*final_module);
+            let Some(final_module) =
+                Vc::try_resolve_downcast_type::<EcmascriptModuleAsset>(*final_module).await?
+            else {
+                return Ok(Vc::upcast(source_module));
+            };
+
+            // If there's a side effect, we return the facade of the final module.
+            if matches!(ty, FoundExportType::SideEffects) {
+                return Ok(Self::select_part(final_module, ModulePart::facade()));
+            }
+
+            vdbg!(*ty, final_module);
             vdbg!((*new_export).clone());
 
             if let Some(new_export) = new_export {
                 if *new_export == export_name {
-                    return Ok(Vc::upcast(*final_module));
+                    return Ok(Vc::upcast(final_module));
                 }
             }
         }
