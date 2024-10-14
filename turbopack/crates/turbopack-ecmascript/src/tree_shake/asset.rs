@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use turbo_tasks::Vc;
+use turbo_tasks::{vdbg, Vc};
 use turbopack_core::{
     asset::{Asset, AssetContent},
     chunk::{AsyncModuleInfo, ChunkableModule, ChunkingContext, EvaluatableAsset},
@@ -108,21 +108,38 @@ impl EcmascriptModulePartAsset {
                 return Ok(Vc::upcast(EcmascriptModulePartAsset::new(module, part)));
             }
 
-            // TODO: Exclude local bindings by using ModulePart::exports()
-            if entrypoints.contains_key(&Key::Exports) {}
+            vdbg!("reexport", export_name.clone());
 
             let side_effect_free_packages = module.asset_context().side_effect_free_packages();
+
+            // Exclude local bindings by using exports module part.
+            let source_module = if entrypoints.contains_key(&Key::Exports)
+                && *module
+                    .is_marked_as_side_effect_free(side_effect_free_packages)
+                    .await?
+            {
+                Vc::upcast(EcmascriptModulePartAsset::new(
+                    module,
+                    ModulePart::exports(),
+                ))
+            } else {
+                Vc::upcast(module)
+            };
 
             let FollowExportsResult {
                 module: final_module,
                 export_name: new_export,
                 ..
             } = &*follow_reexports(
-                Vc::upcast(module),
+                source_module,
                 export_name.clone(),
                 side_effect_free_packages,
             )
             .await?;
+
+            vdbg!(*final_module);
+            vdbg!((*new_export).clone());
+
             if let Some(new_export) = new_export {
                 if *new_export == export_name {
                     return Ok(Vc::upcast(*final_module));
